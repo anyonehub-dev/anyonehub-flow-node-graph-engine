@@ -50,7 +50,7 @@ subprojects {
     apply(plugin = "com.vanniktech.maven.publish")
 
     configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
-        coordinates("com.anyonehub", "reaktor", "1.0.0")
+        coordinates("com.anyonehub", project.name, "1.0.0")
 
         pom {
             name.set("Anyone-Hub Reaktor Engine")
