@@ -1,0 +1,40 @@
+// Copyright 2024 anyone-Hub
+
+package dev.shibasis.reaktor.auth.api
+
+import dev.shibasis.reaktor.auth.App
+import dev.shibasis.reaktor.core.network.ErrorMessage
+import dev.shibasis.reaktor.core.network.StatusCode
+import dev.shibasis.reaktor.graph.core.Graph
+import dev.shibasis.reaktor.portgraph.graph.connect
+import dev.shibasis.reaktor.portgraph.port.provides
+import dev.shibasis.reaktor.portgraph.port.consumes
+import dev.shibasis.reaktor.service.GetHandler
+import dev.shibasis.reaktor.service.Request
+import dev.shibasis.reaktor.service.Response
+import dev.shibasis.reaktor.service.Service
+import kotlinx.serialization.Serializable
+
+
+@Serializable
+sealed class AppResponse(
+    override val statusCode: StatusCode = StatusCode.OK,
+    override val headers: MutableMap<String, String> = mutableMapOf(),
+): Response() {
+    @Serializable
+    data class Success(val apps: List<App>): AppResponse(StatusCode.OK)
+    @Serializable
+    data class Failure(val error: ErrorMessage): AppResponse(StatusCode.BAD_REQUEST)
+}
+
+
+abstract class AppService(baseUrl: String): Service(baseUrl) {
+    abstract val getAll: GetHandler<Request, AppResponse>
+    abstract val getApp: GetHandler<Request, AppResponse>
+}
+
+abstract class AppClient: AppService("http://cloudflare/api") {
+    override val getAll = GetHandler<Request, AppResponse>("/")
+    override val getApp = GetHandler<Request, AppResponse>("/{id}")
+}
+

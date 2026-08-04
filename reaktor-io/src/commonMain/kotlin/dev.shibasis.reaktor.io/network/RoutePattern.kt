@@ -1,0 +1,75 @@
+// Copyright 2024 anyone-Hub
+
+package dev.shibasis.reaktor.io.network
+
+import co.touchlab.kermit.Logger
+
+/* Use https://regexr.com/ to understand, and GPT */
+/*
+
+"/{id}/something/{members}"
+    becomes
+RoutePattern(
+    original=/{id}/something/{members},
+    regex=^/([^/]+)/something/([^/]+)$,
+    paramNames=[id, members]
+)
+
+/something
+    becomes
+null
+
+todo understand deeper and explain better
+*/
+
+
+object RegexCommon {
+    val surroundedByBraces =  """\{([^}]+)\}""".toRegex()
+    const val beforeSlash = "([^/]+)"
+}
+
+
+// todo study https://hono.dev/docs/concepts/routers
+data class RoutePattern(
+    val original: String = "/",
+    val regex: Regex = Regex(""),
+    val paramNames: List<String> = listOf()
+) {
+    fun getParams(matchResult: MatchResult): Map<String, String> {
+        val values = matchResult.groupValues.drop(1)
+        return paramNames.zip(values).toMap()
+    }
+
+    fun fill(params: Map<String, String>): String {
+        return paramNames.fold(original) { acc, paramName ->
+            val value = params[paramName]
+            if (value == null) {
+                Logger.e("RoutePattern.fill: Missing parameter $paramName")
+                return acc
+            }
+
+            acc.replace("{$paramName}", value)
+        }
+    }
+
+    companion object {
+        fun from(route: String): RoutePattern {
+            val paramRegex = RegexCommon.surroundedByBraces
+            val paramNames = mutableListOf<String>()
+
+            val pattern = route.replace(paramRegex) { match ->
+                paramNames.add(match.groups[1]!!.value)
+                return@replace RegexCommon.beforeSlash
+            }
+
+            return RoutePattern(
+                original = route,
+                regex = Regex("^$pattern$"),
+                paramNames = paramNames
+            )
+        }
+    }
+}
+
+
+inline fun String.toRoutePattern() = RoutePattern.from(this)

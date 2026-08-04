@@ -1,0 +1,671 @@
+// Copyright 2024 anyone-Hub
+
+@file:OptIn(ExperimentalUnsignedTypes::class)
+
+package dev.shibasis.reaktor.flexbuffer
+
+import dev.shibasis.reaktor.core.EncodingComplexCase
+import dev.shibasis.reaktor.core.EncodingSimpleCase
+import dev.shibasis.reaktor.core.InnerNestedData
+import dev.shibasis.reaktor.core.NestedData
+import dev.shibasis.reaktor.core.NullableTestStruct
+import dev.shibasis.reaktor.core.ShortArrayStruct
+import dev.shibasis.reaktor.flexbuffer.generated.ReaktorFlexbufferCoders
+import dev.shibasis.reaktor.flexbuffer.core.FlexCoder
+import dev.shibasis.reaktor.flexbuffer.core.FlexCoderRegistry
+import dev.shibasis.reaktor.flexbuffer.core.FlexBuffers
+import dev.shibasis.reaktor.flexbuffer.core.toByteArray
+import dev.shibasis.reaktor.flexbuffer.core.toFlexMap
+import dev.shibasis.reaktor.flexbuffer.flatbuffers.ArrayReadBuffer
+import dev.shibasis.reaktor.flexbuffer.flatbuffers.FlexBuffersBuilder
+import dev.shibasis.reaktor.flexbuffer.flatbuffers.Reference
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import kotlin.time.measureTime
+
+/**
+ * Integration tests for FlexBuffer encode-decode round-trip.
+ * Verifies that objects survive serialization and deserialization intact.
+ */
+class FlexDecoderTests {
+
+    // ---- Helper ----
+
+    private inline fun <reified T : Any> roundTrip(value: T): T {
+        val encoded = FlexBuffers.encode(value)
+        return FlexBuffers.decode(encoded)
+    }
+
+    private fun <T> roundTrip(value: T, serializer: KSerializer<T>): T {
+        val encoded = FlexBuffers.encode(serializer, value)
+        return FlexBuffers.decode(serializer, encoded)
+    }
+
+    @Serializable
+    data class PrimitiveBulkCase(
+        val bytes: ByteArray = byteArrayOf(1, 2, 3, 4),
+        val ints: List<Int> = listOf(1, 2, 3, 4, 5),
+        val doubles: List<Double> = listOf(1.5, 2.5, 3.5),
+        val flags: List<Boolean> = listOf(true, false, true),
+        val chars: List<Char> = listOf('a', 'b', 'c')
+    )
+
+    @Serializable
+    data class NegativePrimitiveCase(
+        val ints: List<Int> = listOf(-1, 0, 1)
+    )
+
+    @Serializable
+    data class ManualNestedDirectCase(
+        val value: Int,
+        val label: String
+    )
+
+    @Serializable
+    data class SerializerFallbackContainer(
+        val id: Int,
+        val nested: ManualNestedDirectCase,
+        val items: List<ManualNestedDirectCase>,
+        val byKey: Map<String, ManualNestedDirectCase>
+    )
+
+    @Serializable
+    sealed class PolymorphicEvent {
+        @Serializable
+        data class Message(
+            val id: Int,
+            val text: String
+        ) : PolymorphicEvent()
+
+        @Serializable
+        data object Complete : PolymorphicEvent()
+    }
+
+    @Serializable
+    data class PolymorphicEnvelope(
+        val primary: PolymorphicEvent,
+        val events: List<PolymorphicEvent>,
+        val byKey: Map<String, PolymorphicEvent>
+    )
+
+    private object CountingNestedDirectCoder : FlexCoder<ManualNestedDirectCase> {
+        var encodeCount = 0
+        var decodeCount = 0
+
+        fun reset() {
+            encodeCount = 0
+            decodeCount = 0
+        }
+
+        override fun encode(builder: FlexBuffersBuilder, value: ManualNestedDirectCase, key: String?) {
+            encodeCount++
+            val start = builder.startMap()
+            builder.set("label", value.label)
+            builder.set("value", value.value)
+            builder.endMap(start, key, presorted = true)
+        }
+
+        override fun decode(ref: Reference): ManualNestedDirectCase {
+            decodeCount++
+            val map = ref.toMap()
+            return ManualNestedDirectCase(
+                value = map.getInt(1),
+                label = map.getString(0)
+            )
+        }
+    }
+
+    // ---- Simple Case ----
+
+    @Test
+    fun testRoundTripSimpleCase() {
+        val original = EncodingSimpleCase()
+        val decoded = roundTrip(original, EncodingSimpleCase.serializer())
+
+        assertEquals(original.mapOfStringToInt, decoded.mapOfStringToInt)
+        assertEquals(original.arrayOfInt, decoded.arrayOfInt)
+        assertEquals(original.mutableMapOfStringToList.size, decoded.mutableMapOfStringToList.size)
+        original.mutableMapOfStringToList.forEach { (key, value) ->
+            assertEquals(value, decoded.mutableMapOfStringToList[key])
+        }
+    }
+
+    @Test
+    fun testMapKeyPrefixLookupIsExact() {
+        val encoded = FlexBuffers.build {
+            val map = startMap()
+            set("a", 1)
+            set("aa", 2)
+            set("aaa", 3)
+            endMap(map)
+        }
+        val map = FlexBuffers.getRoot(encoded).toMap()
+
+        assertEquals(1, map.getInt("a", -1))
+        assertEquals(2, map.getInt("aa", -1))
+        assertEquals(3, map.getInt("aaa", -1))
+        assertEquals(-1, map.getInt("aaaa", -1))
+        assertTrue(map.indexOf("a") >= 0)
+        assertTrue(map.indexOf("aaaa") < 0)
+    }
+
+    @Test
+    fun testMapUsesUnsignedUtf8KeyOrderAndFindsUnicodeKeys() {
+        val encoded = FlexBuffers.build {
+            val map = startMap()
+            // Deliberately not in UTF-8 byte order. Signed-Byte ordering used to
+            // place the C3 byte for é before ASCII z, unlike C/C++ strcmp.
+            set("Ωmega", 4)
+            set("zulu", 2)
+            set("中", 5)
+            set("éclair", 3)
+            set("alpha", 1)
+            endMap(map)
+        }
+        val map = FlexBuffers.getRoot(encoded).toMap()
+
+        assertEquals(
+            listOf("alpha", "zulu", "éclair", "Ωmega", "中"),
+            (0 until map.size).map(map::keyAsString)
+        )
+        assertEquals(1, map.getInt("alpha", -1))
+        assertEquals(2, map.getInt("zulu", -1))
+        assertEquals(3, map.getInt("éclair", -1))
+        assertEquals(4, map.getInt("Ωmega", -1))
+        assertEquals(5, map.getInt("中", -1))
+        assertEquals(-1, map.getInt("éclat", -1))
+    }
+
+    @Test
+    fun testBlobRejectsOnePastEndIndex() {
+        val encoded = FlexBuffers.build { put(byteArrayOf(10, 20)) }
+        val blob = FlexBuffers.getRoot(encoded).toBlob()
+
+        assertEquals(10.toByte(), blob[0])
+        assertEquals(20.toByte(), blob[1])
+        assertFailsWith<IllegalStateException> { blob[-1] }
+        assertFailsWith<IllegalStateException> { blob[blob.size] }
+    }
+
+    @Test
+    fun byteArrayToFlexMapDoesNotInterpretScalarRootsAsOffsets() {
+        val scalar = FlexBuffers.build { put(42) }
+
+        assertEquals(0, scalar.toFlexMap().size)
+    }
+
+    @Test
+    fun invalidNumericStringsReturnZeroAndSignedVectorsSignExtend() {
+        val invalid = FlexBuffers.getRoot(FlexBuffers.build { put("Fred") })
+        assertEquals(0L, invalid.toLong())
+        assertEquals(0UL, invalid.toULong())
+        assertEquals(0.0, invalid.toDouble())
+
+        val signed = FlexBuffers.getRoot(FlexBuffers.build { put(intArrayOf(-1, 0, 1)) })
+        assertContentEquals(ulongArrayOf(ULong.MAX_VALUE, 0UL, 1UL), signed.toULongArray())
+    }
+
+    // ---- Complex Case: all primitive types, collections, nested objects, maps ----
+
+    @Test
+    fun testRoundTripComplexCase() {
+        val original = EncodingComplexCase()
+        val decoded = roundTrip(original, EncodingComplexCase.serializer())
+
+        // Primitives
+        assertEquals(original.booleanField, decoded.booleanField)
+        assertEquals(original.byteField, decoded.byteField)
+        assertEquals(original.shortField, decoded.shortField)
+        assertEquals(original.intField, decoded.intField)
+        assertEquals(original.longField, decoded.longField)
+        assertEquals(original.floatField, decoded.floatField)
+        assertEquals(original.doubleField, decoded.doubleField)
+        assertEquals(original.charField, decoded.charField)
+        assertEquals(original.stringField, decoded.stringField)
+
+        // ByteArray
+        assertContentEquals(original.byteArrayField, decoded.byteArrayField)
+
+        // Typed lists
+        assertEquals(original.shortListField, decoded.shortListField)
+        assertEquals(original.intSetField, decoded.intSetField)
+        assertEquals(original.longListField, decoded.longListField)
+        assertEquals(original.floatSetField, decoded.floatSetField)
+        assertEquals(original.doubleListField, decoded.doubleListField)
+        assertEquals(original.charListField, decoded.charListField)
+        assertEquals(original.stringSetField, decoded.stringSetField)
+
+        // Nested lists
+        assertEquals(original.listOfLists, decoded.listOfLists)
+
+        // Maps
+        assertEquals(original.mapOfStringToInt, decoded.mapOfStringToInt)
+        assertEquals(original.mapOfIntToBoolean, decoded.mapOfIntToBoolean)
+
+        // Set of sets
+        assertEquals(original.setOfSets, decoded.setOfSets)
+
+        // Map of string to list
+        assertEquals(original.mutableMapOfStringToList.size, decoded.mutableMapOfStringToList.size)
+        original.mutableMapOfStringToList.forEach { (key, value) ->
+            assertEquals(value, decoded.mutableMapOfStringToList[key])
+        }
+
+        // Nested data
+        assertEquals(original.nestedData.nestedInt, decoded.nestedData.nestedInt)
+        assertEquals(original.nestedData.nestedString, decoded.nestedData.nestedString)
+        assertEquals(original.nestedData.innerNestedData.size, decoded.nestedData.innerNestedData.size)
+        original.nestedData.innerNestedData.forEachIndexed { i, inner ->
+            assertEquals(inner.innerValue, decoded.nestedData.innerNestedData[i].innerValue)
+            assertEquals(inner.innerList, decoded.nestedData.innerNestedData[i].innerList)
+        }
+
+        // Map of string to nested data
+        assertEquals(original.mapOfStringToNestedData.size, decoded.mapOfStringToNestedData.size)
+        original.mapOfStringToNestedData.forEach { (key, value) ->
+            val decodedNested = decoded.mapOfStringToNestedData[key]!!
+            assertEquals(value.nestedInt, decodedNested.nestedInt)
+            assertEquals(value.nestedString, decodedNested.nestedString)
+            assertEquals(value.innerNestedData.size, decodedNested.innerNestedData.size)
+        }
+    }
+
+    @Test
+    fun testBulkPrimitiveCollectionsUseCompactWireTypes() {
+        val encoded = FlexBuffers.encode(PrimitiveBulkCase())
+        val root = FlexBuffers.getRoot(encoded).toMap()
+
+        assertTrue(root["bytes"].isBlob)
+        assertTrue(root["ints"].isTypedVector)
+        assertTrue(root["doubles"].isTypedVector)
+        assertTrue(root["flags"].isTypedVector)
+        assertTrue(root["chars"].isTypedVector)
+
+        val decoded = FlexBuffers.decode<PrimitiveBulkCase>(encoded)
+        assertContentEquals(byteArrayOf(1, 2, 3, 4), decoded.bytes)
+        assertEquals(listOf(1, 2, 3, 4, 5), decoded.ints)
+        assertEquals(listOf(1.5, 2.5, 3.5), decoded.doubles)
+        assertEquals(listOf(true, false, true), decoded.flags)
+        assertEquals(listOf('a', 'b', 'c'), decoded.chars)
+    }
+
+    @Test
+    fun testNegativeSignedCollectionsUseTypedVectors() {
+        // Signed minimal-width storage (C++ WidthI parity): negative collections are
+        // first-class typed vectors now — `-1` costs one sign-extended byte, not a
+        // generic-vector detour.
+        val encoded = FlexBuffers.encode(NegativePrimitiveCase())
+        val root = FlexBuffers.getRoot(encoded).toMap()
+
+        assertTrue(root["ints"].isTypedVector)
+
+        val decoded = FlexBuffers.decode<NegativePrimitiveCase>(encoded)
+        assertEquals(listOf(-1, 0, 1), decoded.ints)
+    }
+
+    @Test
+    fun serializerFallbackUsesRegisteredDirectCodersForNestedValues() {
+        FlexCoderRegistry.clear()
+        CountingNestedDirectCoder.reset()
+        FlexCoderRegistry.registerBySerialName(
+            ManualNestedDirectCase.serializer().descriptor.serialName,
+            CountingNestedDirectCoder
+        )
+
+        try {
+            val original = SerializerFallbackContainer(
+                id = 7,
+                nested = ManualNestedDirectCase(1, "root"),
+                items = listOf(
+                    ManualNestedDirectCase(2, "first"),
+                    ManualNestedDirectCase(3, "second")
+                ),
+                byKey = mapOf(
+                    "a" to ManualNestedDirectCase(4, "map-a"),
+                    "b" to ManualNestedDirectCase(5, "map-b")
+                )
+            )
+
+            val serializer = SerializerFallbackContainer.serializer()
+            val encoded = FlexBuffers.encode(serializer, original)
+            assertEquals(5, CountingNestedDirectCoder.encodeCount)
+
+            val decoded = FlexBuffers.decode(serializer, encoded)
+            assertEquals(original, decoded)
+            assertEquals(5, CountingNestedDirectCoder.decodeCount)
+        } finally {
+            FlexCoderRegistry.clear()
+        }
+    }
+
+    @Test
+    fun sealedPolymorphicValuesRoundTripAtRootAndNestedPositions() {
+        val root: PolymorphicEvent = PolymorphicEvent.Message(7, "root")
+        assertEquals(root, roundTrip(root, PolymorphicEvent.serializer()))
+
+        val envelope = PolymorphicEnvelope(
+            primary = PolymorphicEvent.Message(8, "nested map field"),
+            events = listOf(
+                PolymorphicEvent.Message(9, "nested vector element"),
+                PolymorphicEvent.Complete
+            ),
+            byKey = mapOf(
+                "complete" to PolymorphicEvent.Complete,
+                "message" to PolymorphicEvent.Message(10, "nested map value")
+            )
+        )
+        assertEquals(envelope, roundTrip(envelope, PolymorphicEnvelope.serializer()))
+    }
+
+    @Test
+    fun encodeToBufferAndDecodeBufferUseRegisteredDirectCoder() {
+        FlexCoderRegistry.clear()
+        CountingNestedDirectCoder.reset()
+        FlexCoderRegistry.registerBySerialName(
+            ManualNestedDirectCase.serializer().descriptor.serialName,
+            CountingNestedDirectCoder
+        )
+
+        try {
+            val original = ManualNestedDirectCase(42, "buffer")
+            FlexBuffers.withEncoder { builder ->
+                val buffer = FlexBuffers.encodeToBuffer(ManualNestedDirectCase.serializer(), original, builder)
+                val decoded = FlexBuffers.decode(ManualNestedDirectCase.serializer(), buffer)
+
+                assertEquals(original, decoded)
+                assertEquals(1, CountingNestedDirectCoder.encodeCount)
+                assertEquals(1, CountingNestedDirectCoder.decodeCount)
+            }
+        } finally {
+            FlexCoderRegistry.clear()
+        }
+    }
+
+    @Test
+    fun mapStringHelpersAvoidStringMaterializationWhenOnlyLengthsAreNeeded() {
+        val encoded = FlexBuffers.build {
+            val start = startMap()
+            set("alpha", "hello")
+            set("count", 3)
+            endMap(start, presorted = true)
+        }
+        val map = FlexBuffers.getRoot(encoded).toMap()
+
+        assertTrue(map.keyEquals(0, "alpha"))
+        assertFalse(map.keyEquals(0, "alph"))
+        assertEquals(5, map.keyByteLength(0))
+        assertEquals(5, map.getStringByteLength(0))
+        assertEquals("hello", map.getString(0))
+        assertEquals(3, map.getInt(1))
+    }
+
+    // ---- Primitives in isolation ----
+
+    @Serializable
+    data class PrimitivesOnly(
+        val b: Boolean = true,
+        val i: Int = 42,
+        val l: Long = 123456789L,
+        val f: Float = 3.14f,
+        val d: Double = 2.718281828,
+        val s: String = "hello world",
+        val c: Char = 'Z',
+        val by: Byte = 127,
+        val sh: Short = 32000
+    )
+
+    @Test
+    fun testRoundTripPrimitivesOnly() {
+        val original = PrimitivesOnly()
+        val decoded = roundTrip(original)
+        assertEquals(original, decoded)
+    }
+
+    // ---- Empty collections ----
+
+    @Serializable
+    data class EmptyCollections(
+        val emptyList: List<Int> = emptyList(),
+        val emptyMap: Map<String, String> = emptyMap(),
+        val emptySet: Set<Double> = emptySet()
+    )
+
+    @Test
+    fun testRoundTripEmptyCollections() {
+        val original = EmptyCollections()
+        val decoded = roundTrip(original)
+        assertEquals(original.emptyList, decoded.emptyList)
+        assertEquals(original.emptyMap, decoded.emptyMap)
+        assertEquals(original.emptySet, decoded.emptySet)
+    }
+
+    // ---- Nested objects ----
+
+    @Serializable
+    data class Outer(
+        val name: String = "outer",
+        val inner: Inner = Inner()
+    )
+
+    @Serializable
+    data class Inner(
+        val value: Int = 99,
+        val label: String = "inner"
+    )
+
+    @Test
+    fun testRoundTripNestedObjects() {
+        val original = Outer()
+        val decoded = roundTrip(original)
+        assertEquals(original, decoded)
+    }
+
+    // ---- Map with non-string keys ----
+
+    @Serializable
+    data class IntKeyMap(
+        val data: Map<Int, String> = mapOf(1 to "one", 2 to "two", 3 to "three")
+    )
+
+    @Test
+    fun testRoundTripIntKeyMap() {
+        val original = IntKeyMap()
+        val decoded = roundTrip(original)
+        assertEquals(original.data.size, decoded.data.size)
+        original.data.forEach { (key, value) ->
+            assertEquals(value, decoded.data[key])
+        }
+    }
+
+    // ---- List of objects ----
+
+    @Serializable
+    data class ListOfObjects(
+        val items: List<Inner> = listOf(
+            Inner(1, "first"),
+            Inner(2, "second"),
+            Inner(3, "third")
+        )
+    )
+
+    @Test
+    fun testRoundTripListOfObjects() {
+        val original = ListOfObjects()
+        val decoded = roundTrip(original)
+        assertEquals(original.items.size, decoded.items.size)
+        original.items.forEachIndexed { i, item ->
+            assertEquals(item, decoded.items[i])
+        }
+    }
+
+    // ---- Map of string to list of objects ----
+
+    @Serializable
+    data class MapOfLists(
+        val groups: Map<String, List<Inner>> = mapOf(
+            "group1" to listOf(Inner(1, "a"), Inner(2, "b")),
+            "group2" to listOf(Inner(3, "c"))
+        )
+    )
+
+    @Test
+    fun testRoundTripMapOfLists() {
+        val original = MapOfLists()
+        val decoded = roundTrip(original)
+        assertEquals(original.groups.size, decoded.groups.size)
+        original.groups.forEach { (key, list) ->
+            val decodedList = decoded.groups[key]!!
+            assertEquals(list.size, decodedList.size)
+            list.forEachIndexed { i, item ->
+                assertEquals(item, decodedList[i])
+            }
+        }
+    }
+
+    // ---- Deeply nested structure ----
+
+    @Test
+    fun testRoundTripNestedData() {
+        val original = NestedData(
+            nestedInt = 42,
+            nestedString = "deep",
+            innerNestedData = listOf(
+                InnerNestedData(1.1, listOf("a", "b")),
+                InnerNestedData(2.2, listOf("c", "d", "e"))
+            )
+        )
+        val decoded = roundTrip(original, NestedData.serializer())
+        assertEquals(original.nestedInt, decoded.nestedInt)
+        assertEquals(original.nestedString, decoded.nestedString)
+        assertEquals(original.innerNestedData.size, decoded.innerNestedData.size)
+        original.innerNestedData.forEachIndexed { i, inner ->
+            assertEquals(inner.innerValue, decoded.innerNestedData[i].innerValue)
+            assertEquals(inner.innerList, decoded.innerNestedData[i].innerList)
+        }
+    }
+
+    // ---- Nullable field support ----
+
+    @Test
+    fun nullableFieldsWithNulls() {
+        ReaktorFlexbufferCoders.register()
+        val data = NullableTestStruct(name = "test")
+        val decoded = roundTrip(data)
+        assertEquals("test", decoded.name)
+        assertEquals(null, decoded.age)
+        assertEquals(null, decoded.bio)
+        assertEquals(null, decoded.scores)
+        assertEquals(null, decoded.metadata)
+        assertEquals(null, decoded.nested)
+    }
+
+    @Test
+    fun nullableFieldsWithValues() {
+        ReaktorFlexbufferCoders.register()
+        val nested = InnerNestedData(innerValue = 42.0, innerList = listOf("a", "b"))
+        val data = NullableTestStruct(
+            name = "full",
+            age = 30,
+            bio = "hello",
+            scores = listOf(1, 2, 3),
+            metadata = mapOf("k" to "v"),
+            nested = nested
+        )
+        val decoded = roundTrip(data)
+        assertEquals("full", decoded.name)
+        assertEquals(30, decoded.age)
+        assertEquals("hello", decoded.bio)
+        assertEquals(listOf(1, 2, 3), decoded.scores)
+        assertEquals(mapOf("k" to "v"), decoded.metadata)
+        assertEquals(nested, decoded.nested)
+    }
+
+    @Test
+    fun generatedCoderDecodesArrayBackedSliceWithoutRebasing() {
+        ReaktorFlexbufferCoders.register()
+        val original = NullableTestStruct(name = "slice", age = 17, scores = listOf(2, 4, 8))
+        val encoded = FlexBuffers.encode(original)
+        val padded = ByteArray(encoded.size + 11) { 0x55.toByte() }
+        encoded.copyInto(padded, destinationOffset = 7)
+        val slice = ArrayReadBuffer(padded, offset = 7, limit = encoded.size)
+
+        assertContentEquals(encoded, slice.toByteArray())
+        assertEquals(original, FlexBuffers.decode(NullableTestStruct.serializer(), slice))
+    }
+
+    @Test
+    fun generatedCoderRoundTripsShortArrayWithoutIntermediateIntArray() {
+        ReaktorFlexbufferCoders.register()
+        val original = shortArrayOf(Short.MIN_VALUE, -1, 0, 1, Short.MAX_VALUE)
+        val encoded = FlexBuffers.encode(ShortArrayStruct(original))
+        val decoded = FlexBuffers.decode<ShortArrayStruct>(encoded)
+        assertContentEquals(original, decoded.values)
+    }
+
+    // ---- Performance: encode-decode vs JSON ----
+
+    @Test
+    fun benchRoundTripComplexCase() {
+        val complexCase = EncodingComplexCase()
+        val times = 20
+
+        var avgFlexEncode = 0L
+        var avgFlexDecode = 0L
+        var avgJsonEncode = 0L
+        var avgJsonDecode = 0L
+        val serializer = EncodingComplexCase.serializer()
+
+        repeat(times) {
+            val flexEncodeTime = measureTime {
+                FlexBuffers.encode(serializer, complexCase)
+            }.inWholeMicroseconds
+
+            // Encode once for decode timing
+            val encoded = FlexBuffers.encode(serializer, complexCase)
+
+            val flexDecodeTime = measureTime {
+                FlexBuffers.decode(serializer, encoded)
+            }.inWholeMicroseconds
+
+            var json = ""
+            val jsonEncodeTime = measureTime {
+                json = Json.encodeToString(serializer, complexCase)
+            }.inWholeMicroseconds
+
+            val jsonDecodeTime = measureTime {
+                Json.decodeFromString(serializer, json)
+            }.inWholeMicroseconds
+
+            avgFlexEncode += flexEncodeTime
+            avgFlexDecode += flexDecodeTime
+            avgJsonEncode += jsonEncodeTime
+            avgJsonDecode += jsonDecodeTime
+        }
+
+        avgFlexEncode /= times
+        avgFlexDecode /= times
+        avgJsonEncode /= times
+        avgJsonDecode /= times
+
+        println("--- Round-trip Benchmark (${times} iterations avg, microseconds) ---")
+        println("FlexBuffer Encode: $avgFlexEncode")
+        println("FlexBuffer Decode: $avgFlexDecode")
+        println("FlexBuffer Total:  ${avgFlexEncode + avgFlexDecode}")
+        println("Json Encode: $avgJsonEncode")
+        println("Json Decode: $avgJsonDecode")
+        println("Json Total:  ${avgJsonEncode + avgJsonDecode}")
+
+        // Sanity: decoded values must match
+        val decoded = roundTrip(complexCase, serializer)
+        assertEquals(complexCase.intField, decoded.intField)
+        assertEquals(complexCase.stringField, decoded.stringField)
+        assertEquals(complexCase.booleanField, decoded.booleanField)
+    }
+}

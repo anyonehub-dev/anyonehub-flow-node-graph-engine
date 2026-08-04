@@ -1,0 +1,23 @@
+{
+  "name": "reaktor-auth",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "postbuild": "karakum --config karakum.config.json",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "reaktor-reaktor-auth": "file://./export"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "karakum": "^1.0.0-alpha.107",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

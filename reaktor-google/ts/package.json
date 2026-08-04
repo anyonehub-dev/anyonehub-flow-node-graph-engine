@@ -1,0 +1,18 @@
+{
+  "name": "reaktor-google",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "postbuild": "karakum --config karakum.config.json",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "reaktor-reaktor-google": "file://./export"
+  },
+  "devDependencies": {
+    "karakum": "^1.0.0-alpha.107",
+    "typescript": "^6.0.3"
+  }
+}

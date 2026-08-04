@@ -1,0 +1,77 @@
+// Copyright 2024 anyone-Hub
+
+import dev.shibasis.dependeasy.android.*
+import dev.shibasis.dependeasy.common.*
+import dev.shibasis.dependeasy.Version
+import dev.shibasis.dependeasy.server.*
+import dev.shibasis.dependeasy.darwin.*
+import dev.shibasis.dependeasy.web.*
+
+plugins {
+    id("dev.shibasis.dependeasy.library")
+}
+
+val sqldelightVersion: String by project
+val apolloKotlinVersion: String by project
+
+kotlin {
+    common {
+        dependencies {
+            api(project(":reaktor-io"))
+            api("app.cash.sqldelight:runtime:$sqldelightVersion")
+            api("com.apollographql.apollo:apollo-runtime:$apolloKotlinVersion")
+        }
+    }
+
+    // https://web.dev/articles/origin-private-file-system
+    // https://developer.chrome.com/blog/sqlite-wasm-in-the-browser-backed-by-the-origin-private-file-system
+    web {
+        dependencies {
+            api("app.cash.sqldelight:web-worker-driver:$sqldelightVersion")
+            implementation(devNpm("copy-webpack-plugin", "9.1.0"))
+        }
+    }
+
+    droid {
+        dependencies {
+            implementation("androidx.sqlite:sqlite-framework:2.4.0")
+            api("app.cash.sqldelight:android-driver:$sqldelightVersion")
+        }
+    }
+
+    darwin {
+        dependencies {
+            api("app.cash.sqldelight:native-driver:$sqldelightVersion")
+        }
+        podDependencies {
+            framework {
+                linkerOpts("-lsqlite3")
+            }
+        }
+    }
+    server {
+        dependencies {
+            implementation("app.cash.sqldelight:jdbc-driver:$sqldelightVersion")
+            implementation("app.cash.sqldelight:sqlite-driver:$sqldelightVersion")
+            api(project(":reaktor-service"))
+            api("org.neo4j.driver:neo4j-java-driver:5.28.9")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:${Version.Coroutines}")
+            // Exposed/Postgres for the service DB helpers (ExposedAdapter/CrudRepository).
+            api("org.jetbrains.exposed:exposed-core:${Version.Exposed}")
+            api("org.jetbrains.exposed:exposed-jdbc:${Version.Exposed}")
+            api("org.postgresql:postgresql:42.7.3")
+        }
+    }
+}
+
+tasks.withType<Test> {
+    filter {
+        includeTestsMatching("*Test")
+        excludeTestsMatching("*TestUser*")
+        excludeTestsMatching("*TestConfig*")
+    }
+}
+
+android {
+    defaults("dev.shibasis.reaktor.db")
+}

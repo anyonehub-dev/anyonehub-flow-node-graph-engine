@@ -1,0 +1,191 @@
+// Copyright 2024 anyone-Hub
+
+package dev.shibasis.reaktor.auth
+
+import dev.shibasis.reaktor.auth.api.LoginResponse
+import dev.shibasis.reaktor.auth.api.TokenSet
+import dev.shibasis.reaktor.auth.api.TokenRequest
+import dev.shibasis.reaktor.auth.kernel.AuthContext
+import dev.shibasis.reaktor.auth.kernel.AuthDecision
+import dev.shibasis.reaktor.auth.kernel.AuthDefaults
+import dev.shibasis.reaktor.auth.kernel.AuthDenyReason
+import dev.shibasis.reaktor.auth.kernel.AuthMethod
+import dev.shibasis.reaktor.auth.kernel.AuthRequirement
+import dev.shibasis.reaktor.auth.kernel.Delegation
+import dev.shibasis.reaktor.auth.kernel.LocalAuthorizer
+import dev.shibasis.reaktor.auth.kernel.PermissionRef
+import dev.shibasis.reaktor.auth.kernel.PrincipalKind
+import dev.shibasis.reaktor.auth.kernel.PrincipalRef
+import dev.shibasis.reaktor.auth.kernel.ResourceRef
+import dev.shibasis.reaktor.auth.kernel.RoleRef
+import dev.shibasis.reaktor.auth.kernel.anyOf
+import dev.shibasis.reaktor.auth.kernel.permits
+import kotlinx.serialization.json.JsonObject
+import kotlin.test.Test
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+
+class AuthKernelIntegrationTest {
+    private val userContext = AuthContext(
+        principal = PrincipalRef("principal_usr_123", PrincipalKind.USER),
+        identityId = "idn_123",
+        appId = "app_manna",
+        tenantId = "tenant_456",
+        contextId = "event_group_789",
+        sessionId = "ses_123",
+        tokenId = "tok_123",
+        issuer = AuthDefaults.ISSUER,
+        audience = "manna-api",
+        scopes = setOf(PermissionRef(name = "event.read"), PermissionRef(name = "event.write")),
+        roles = setOf(RoleRef(name = "owner")),
+        permissions = setOf(PermissionRef(name = "event.create")),
+        method = AuthMethod.ACCESS_TOKEN,
+    )
+
+    @Test
+    fun authorizerAllowsAudienceAppTenantScopeAndResourceMatch() {
+        val requirement = permits("event.write")
+            .audience("manna-api")
+            .inApp("app_manna")
+            .inTenant("tenant_456")
+            .on(
+                ResourceRef(
+                    type = "event_group",
+                    id = "event_group_789",
+                    appId = "app_manna",
+                    tenantId = "tenant_456",
+                    contextId = "event_group_789",
+                )
+            )
+
+        assertIs<AuthDecision.Allow>(LocalAuthorizer.authorize(userContext, requirement))
+    }
+
+    @Test
+    fun authorizerDeniesMissingContextAndMismatchedAudienceBeforeAuthorizationChecks() {
+        val missingContext = LocalAuthorizer.authorize(null, permits("event.read"))
+        assertIs<AuthDecision.Deny>(missingContext)
+        assertEquals(401, missingContext.statusCode)
+        assertEquals(AuthDenyReason.MISSING_AUTH_CONTEXT, missingContext.reason)
+
+        val invalidAudience = LocalAuthorizer.authorize(
+            userContext,
+            permits("event.read").audience("other-api"),
+        )
+        assertIs<AuthDecision.Deny>(invalidAudience)
+        assertEquals(401, invalidAudience.statusCode)
+        assertEquals(AuthDenyReason.INVALID_AUDIENCE, invalidAudience.reason)
+    }
+
+    @Test
+    fun authorizerSupportsAnyOfAndPrincipalKindConstraints() {
+        val readOrAdmin = anyOf(
+            permits("admin.all"),
+            permits("event.read"),
+        ).forUsers()
+
+        assertIs<AuthDecision.Allow>(LocalAuthorizer.authorize(userContext, readOrAdmin))
+
+        val serviceOnly = permits("event.read").forServices()
+        val denied = LocalAuthorizer.authorize(userContext, serviceOnly)
+        assertIs<AuthDecision.Deny>(denied)
+        assertEquals(AuthDenyReason.INVALID_PRINCIPAL_KIND, denied.reason)
+
+        val serviceContext = userContext.copy(
+            principal = PrincipalRef("principal_svc_worker", PrincipalKind.SERVICE),
+            identityId = null,
+            sessionId = null,
+            method = AuthMethod.SERVICE_CREDENTIAL,
+        )
+        val compositeDenied = LocalAuthorizer.authorize(serviceContext, readOrAdmin)
+        assertIs<AuthDecision.Deny>(compositeDenied)
+        assertEquals(AuthDenyReason.INVALID_PRINCIPAL_KIND, compositeDenied.reason)
+    }
+
+    @Test
+    fun authorizerSupportsRolesAndPermissionsAsFirstClassRequirements() {
+        val requirement = AuthRequirement(
+            roles = setOf(RoleRef(name = "owner")),
+            permissions = setOf(PermissionRef(name = "event.create")),
+        )
+        assertIs<AuthDecision.Allow>(LocalAuthorizer.authorize(userContext, requirement))
+
+        val missingPermission = LocalAuthorizer.authorize(
+            userContext,
+            requirement.copy(permissions = setOf(PermissionRef(name = "event.delete"))),
+        )
+        assertIs<AuthDecision.Deny>(missingPermission)
+        assertEquals(AuthDenyReason.MISSING_PERMISSION, missingPermission.reason)
+
+        val missingRole = LocalAuthorizer.authorize(
+            userContext,
+            requirement.copy(roles = setOf(RoleRef(name = "admin"))),
+        )
+        assertIs<AuthDecision.Deny>(missingRole)
+        assertEquals(AuthDenyReason.MISSING_ROLE, missingRole.reason)
+    }
+
+    @Test
+    fun delegatedCallsRequireExplicitDelegationAllowance() {
+        val delegatedContext = userContext.copy(
+            actor = PrincipalRef("principal_svc_worker", PrincipalKind.SERVICE),
+            delegation = Delegation(
+                actor = PrincipalRef("principal_svc_worker", PrincipalKind.SERVICE),
+                subject = userContext.principal,
+                reason = "job_123",
+            ),
+        )
+
+        val denied = LocalAuthorizer.authorize(delegatedContext, permits("event.write"))
+        assertIs<AuthDecision.Deny>(denied)
+        assertEquals(AuthDenyReason.DELEGATION_DENIED, denied.reason)
+
+        val allowed = LocalAuthorizer.authorize(
+            delegatedContext,
+            permits("event.write").allowDelegatedActor(),
+        )
+        assertIs<AuthDecision.Allow>(allowed)
+    }
+
+    @Test
+    fun authContextSnapshotRoundTrips() {
+        val snapshot = userContext.toSnapshot()
+        val context = snapshot.toAuthContext()
+
+        assertEquals(userContext.principal, context.principal)
+        assertEquals(userContext.identityId, context.identityId)
+        assertEquals(userContext.appId, context.appId)
+        assertEquals(userContext.tenantId, context.tenantId)
+        assertEquals(userContext.contextId, context.contextId)
+        assertEquals(userContext.sessionId, context.sessionId)
+        assertEquals(userContext.audience, context.audience)
+        assertContains(context.scopes, PermissionRef(name = "event.read"))
+        assertContains(context.permissions, PermissionRef(name = "event.create"))
+    }
+
+    @Test
+    fun tokenContractsExposeContextAndTokenSet() {
+        val login = LoginResponse.Success(
+            context = userContext.toSnapshot(),
+            profile = JsonObject(emptyMap()),
+            tokenSet = TokenSet(
+                accessToken = "access-token",
+                refreshToken = "refresh-token",
+                audience = "manna-api",
+                scopes = listOf("event.read"),
+            ),
+        )
+
+        assertEquals("principal_usr_123", login.context.principalId)
+        assertEquals("access-token", login.tokenSet.accessToken)
+        assertEquals("refresh-token", login.tokenSet.refreshToken)
+        assertEquals("Bearer", login.tokenSet.tokenType)
+
+        val token = TokenRequest()
+        assertEquals("pat", token.grantType)
+        assertEquals("manna-mcp", token.audience)
+        assertEquals(AuthDefaults.ACCESS_TOKEN_TTL_SECONDS, token.ttlSeconds)
+
+    }
+}
