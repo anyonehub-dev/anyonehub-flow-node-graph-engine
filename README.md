@@ -1,18 +1,18 @@
-# Reaktor
+# anyone-Hub Flow Node Graph Engine
 
-Reaktor is a Kotlin Multiplatform application framework and framework stack for building graph-structured apps, services, and platform bridges across Android, iOS, JVM, JavaScript, Cloudflare Workers, and native C++ interop.
+anyone-Hub Engine is a Kotlin Multiplatform application framework and framework stack for building graph-structured apps, services, and platform bridges across Android, iOS, JVM, JavaScript, Cloudflare Workers, and native C++ interop.
 
 It is the shared runtime used by:
-- [BestBuds](/Users/ovd/dev/bestbuds/README.md)
-- `Manna`
+- [anyone-Hub Terminal](../anyonehub-Terminal/README.md)
+- `anyone-Hub Ecosystem`
 
 ## Graph Blueprint
 
-The graph blueprint is a live visualization of how a Reaktor application is assembled. Every screen, service, repository, and navigation binding is a node in the graph, wired together through typed ports and edges.
+The graph blueprint is a live visualization of how a anyone-Hub Engine application is assembled. Every screen, service, repository, and navigation binding is a node in the graph, wired together through typed ports and edges.
 
-![Reaktor Graph Blueprint - BestBuds application graph showing nodes, routes, containers, services, and navigation wires](https://media.licdn.com/dms/image/v2/D5622AQEjWgnHCS6qVQ/feedshare-shrink_800/B56Z1DUxzQGYAc-/0/1774951013900?e=2147483647&v=beta&t=78ucaCV3dKt5uHDhILM6wr8WlGcwEbZYmm0YC-Ah2i4)
+![anyone-Hub Engine Graph Blueprint - anyone-Hub Terminal application graph showing nodes, routes, containers, services, and navigation wires](https://media.licdn.com/dms/image/v2/D5622AQEjWgnHCS6qVQ/feedshare-shrink_800/B56Z1DUxzQGYAc-/0/1774951013900?e=2147483647&v=beta&t=78ucaCV3dKt5uHDhILM6wr8WlGcwEbZYmm0YC-Ah2i4)
 
-*BestBuds running on Reaktor: screens (green), routes (blue), containers (yellow), services/data (orange), with navigation wires (dark blue) and data wires (green lines) connecting them.*
+*anyone-Hub Terminal running on anyone-Hub Engine: screens (green), routes (blue), containers (yellow), services/data (orange), with navigation wires (dark blue) and data wires (green lines) connecting them.*
 
 ## Dependency direction
 
@@ -23,10 +23,10 @@ At the repo level, the intended direction is:
 2. `compose-flow`
    - generic flow canvas/runtime
 3. `reaktor-flow`
-   - Reaktor graph scene/editor layer
+   - anyone-Hub Engine graph scene/editor layer
 4. product repos
-   - BestBuds
-   - Manna
+   - anyone-Hub Terminal
+   - anyone-Hub Ecosystem
 
 This matters operationally:
 - reusable framework abstractions belong in `reaktor`
@@ -35,19 +35,19 @@ This matters operationally:
 
 ## Current architecture
 
-Reaktor now has three especially important layers for editor and graph work:
+anyone-Hub Engine now has three especially important layers for editor and graph work:
 
 1. `reaktor-core` + `reaktor-graph-port` + `reaktor-graph`
    - the graph runtime, typed ports, lifecycle, navigation, DI, and service model
 2. `compose-flow`
    - the generic flow-canvas substrate: viewport state, pan/zoom/fit, generic nodes/edges/handles, minimap, controls, interaction plumbing
 3. `reaktor-flow`
-   - the Reaktor graph scene system: graph adaptation, measurement, layout strategy, node rendering, graph chrome, and editor framing
+   - the anyone-Hub Engine graph scene system: graph adaptation, measurement, layout strategy, node rendering, graph chrome, and editor framing
 
 That split is intentional:
 - generic flow behavior belongs in `compose-flow`
-- Reaktor graph semantics belong in `reaktor-flow`
-- product shells such as the BestBuds desktop editor should consume `reaktor-flow`, not reimplement graph internals
+- anyone-Hub Engine graph semantics belong in `reaktor-flow`
+- product shells such as the anyone-Hub Terminal desktop editor should consume `reaktor-flow`, not reimplement graph internals
 
 ## Where to start by task type
 
@@ -55,12 +55,12 @@ If you are new to the repo, this is the practical map.
 
 ### Graph runtime, ports, navigation, DI
 Start with:
-- [reaktor-core](/Users/ovd/dev/reaktor/reaktor-core/README.md)
-- [reaktor-graph](/Users/ovd/dev/reaktor/reaktor-graph/README.md)
+- [reaktor-core](./reaktor-core/README.md)
+- [reaktor-graph](./reaktor-graph/README.md)
 
 ### Generic graph canvas behavior
 Start with:
-- [compose-flow](/Users/ovd/dev/reaktor/compose-flow/README.md)
+- [compose-flow](./compose-flow/README.md)
 
 Typical work:
 - pan / zoom / fit
@@ -68,24 +68,24 @@ Typical work:
 - generic minimap / controls
 - pointer / wheel / trackpad behavior
 
-### Reaktor graph scene and graph editor behavior
+### anyone-Hub Flow Node Graph Engine graph scene and graph editor behavior
 Start with:
-- [reaktor-flow](/Users/ovd/dev/reaktor/reaktor-flow/README.md)
+- [reaktor-flow](./reaktor-flow/README.md)
 
 Typical work:
-- Reaktor node measurement
+- anyone-Hub Engine node measurement
 - graph layout strategy
 - graph chrome
 - graph-specific framing
 
 ### Product shell and desktop workbench behavior
 Do not start in this repo. Start in:
-- [BestBuds root README](/Users/ovd/dev/bestbuds/README.md)
-- [BestBuds engine / graph editor guide](/Users/ovd/dev/bestbuds/modules/engine/README.md)
+- [anyone-Hub Terminal root README](../anyonehub-Terminal/README.md)
+- [anyone-Hub Terminal engine / graph editor guide](../anyonehub-Terminal/modules/engine/README.md)
 
-## What Reaktor is for
+## What anyone-Hub Engine is for
 
-Reaktor is built around a few stable ideas:
+anyone-Hub Engine is built around a few stable ideas:
 - **Graph-first composition**: apps and services are assembled as directed graphs of nodes
 - **Typed ports and edges**: features communicate through explicit contracts, not ad-hoc globals
 - **Capability composition**: lifecycle, concurrency, DI, navigation, storage, auth, telemetry are composable mixins
@@ -113,56 +113,56 @@ Every module has a stability level indicating its maturity:
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [reaktor-core](/Users/ovd/dev/reaktor/reaktor-core/README.md) | **Stable** | Android, iOS, JVM, JS | adapters, feature registry, capabilities, cross-platform runtime primitives |
+| [reaktor-core](./reaktor-core/README.md) | **Stable** | Android, iOS, JVM, JS | adapters, feature registry, capabilities, cross-platform runtime primitives |
 | `reaktor-graph-port` | **Stable** | Android, iOS, JVM, JS | typed provider/consumer ports, edges, and port wiring |
-| [reaktor-graph](/Users/ovd/dev/reaktor/reaktor-graph/README.md) | **Stable** | Android, iOS, JVM, JS | graph runtime, node lifecycle, navigation, DI, services |
-| [reaktor-io](/Users/ovd/dev/reaktor/reaktor-io/README.md) | **Stable** | Android, iOS, JVM, JS | route patterns, request/response shapes, HTTP/WebSocket transport |
+| [reaktor-graph](./reaktor-graph/README.md) | **Stable** | Android, iOS, JVM, JS | graph runtime, node lifecycle, navigation, DI, services |
+| [reaktor-io](./reaktor-io/README.md) | **Stable** | Android, iOS, JVM, JS | route patterns, request/response shapes, HTTP/WebSocket transport |
 
 ### Graph Editor
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [compose-flow](/Users/ovd/dev/reaktor/compose-flow/README.md) | **Experimental** | JVM, JS | generic flow canvas/runtime, viewport interactions, node/edge rendering substrate |
-| [reaktor-flow](/Users/ovd/dev/reaktor/reaktor-flow/README.md) | **Experimental** | JVM, JS | Reaktor graph scene, measurement, layout strategy, rendering, editor surface |
+| [compose-flow](./compose-flow/README.md) | **Experimental** | JVM, JS | generic flow canvas/runtime, viewport interactions, node/edge rendering substrate |
+| [reaktor-flow](./reaktor-flow/README.md) | **Experimental** | JVM, JS | anyone-Hub Engine graph scene, measurement, layout strategy, rendering, editor surface |
 
 ### Identity and Data
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [reaktor-auth](/Users/ovd/dev/reaktor/reaktor-auth/README.md) | **Stable** | Android, iOS, JVM, JS | OAuth2/OIDC social login (Google, Apple), JWT verification, RBAC |
-| [reaktor-db](/Users/ovd/dev/reaktor/reaktor-db/README.md) | **Stable** | Android, iOS, JVM, JS | object database, observable stores, cache policies, offline-first repositories |
+| [reaktor-auth](./reaktor-auth/README.md) | **Stable** | Android, iOS, JVM, JS | OAuth2/OIDC social login (Google, Apple), JWT verification, RBAC |
+| [reaktor-db](./reaktor-db/README.md) | **Stable** | Android, iOS, JVM, JS | object database, observable stores, cache policies, offline-first repositories |
 
 ### Server and Cloud
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [reaktor-cloudflare](/Users/ovd/dev/reaktor/reaktor-cloudflare/README.md) | **Experimental** | JS (Cloudflare Workers) | Workers, D1, R2, Durable Objects, PartyServer, Hono, service bindings |
-| [reaktor-google](/Users/ovd/dev/reaktor/reaktor-google/README.md) | **Experimental** | JVM, JS, Android, iOS | Google Cloud Pub/Sub adapters |
-| [reaktor-work](/Users/ovd/dev/reaktor/reaktor-work/README.md) | **Experimental** | Android, iOS, JVM, JS | background task orchestration with platform-native schedulers |
+| [reaktor-cloudflare](./reaktor-cloudflare/README.md) | **Experimental** | JS (Cloudflare Workers) | Workers, D1, R2, Durable Objects, PartyServer, Hono, service bindings |
+| [reaktor-google](./reaktor-google/README.md) | **Experimental** | JVM, JS, Android, iOS | Google Cloud Pub/Sub adapters |
+| [reaktor-work](./reaktor-work/README.md) | **Experimental** | Android, iOS, JVM, JS | background task orchestration with platform-native schedulers |
 
 ### Native Interop
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [reaktor-ffi](/Users/ovd/dev/reaktor/reaktor-ffi/README.md) | **Experimental** | Android (JNI), iOS (cinterop) | native bridge layer with Hermes JS engine integration |
-| [reaktor-flexbuffer](/Users/ovd/dev/reaktor/reaktor-flexbuffer/README.md) | **Experimental** | Android, iOS, JVM, JS | FlexBuffers serialization with native C++ utility layer |
+| [reaktor-ffi](./reaktor-ffi/README.md) | **Experimental** | Android (JNI), iOS (cinterop) | native bridge layer with Hermes JS engine integration |
+| [reaktor-flexbuffer](./reaktor-flexbuffer/README.md) | **Experimental** | Android, iOS, JVM, JS | FlexBuffers serialization with native C++ utility layer |
 
 ### UI and Presentation
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [reaktor-ui](/Users/ovd/dev/reaktor/reaktor-ui/README.md) | **Early** | Android, iOS, JVM, JS | design tokens, Compose-first components, cross-platform theming |
-| [reaktor-media](/Users/ovd/dev/reaktor/reaktor-media/README.md) | **Early** | Android, iOS | camera, gallery, image caching, speech recognition/synthesis adapters |
+| [reaktor-ui](./reaktor-ui/README.md) | **Early** | Android, iOS, JVM, JS | design tokens, Compose-first components, cross-platform theming |
+| [reaktor-media](./reaktor-media/README.md) | **Early** | Android, iOS | camera, gallery, image caching, speech recognition/synthesis adapters |
 | `reaktor-web` | **Brainstorming** | Android, iOS, JS | WebView abstraction for embedding web content in native apps |
 
 ### Platform Services
 
 | Module | Stability | Platforms | Description |
 | --- | --- | --- | --- |
-| [reaktor-location](/Users/ovd/dev/reaktor/reaktor-location/README.md) | **Early** | Android, iOS | cross-platform location adapters |
+| [reaktor-location](./reaktor-location/README.md) | **Early** | Android, iOS | cross-platform location adapters |
 | `reaktor-telemetry` | **Early** | Android, iOS, JVM, JS | OpenTelemetry tracing, Firebase Analytics and Crashlytics adapters |
-| [reaktor-notification](/Users/ovd/dev/reaktor/reaktor-notification/README.md) | **Brainstorming** | Android, iOS, JVM, JS | notification delivery and registration adapter surface |
-| [reaktor-tactile](/Users/ovd/dev/reaktor/reaktor-tactile/README.md) | **Brainstorming** | - | reserved for touch and haptics APIs |
+| [reaktor-notification](./reaktor-notification/README.md) | **Brainstorming** | Android, iOS, JVM, JS | notification delivery and registration adapter surface |
+| [reaktor-tactile](./reaktor-tactile/README.md) | **Brainstorming** | - | reserved for touch and haptics APIs |
 
 ### Tooling and Codegen
 
@@ -171,7 +171,7 @@ Every module has a stability level indicating its maturity:
 | `dependeasy` | **Stable** | Gradle plugin | internal Gradle plugin for multiplatform target orchestration and native builds |
 | `reaktor-compiler` | **Early** | JVM (build-time) | KSP processor for JS Promise wrappers of suspend functions |
 | `reaktor-mcp` | **Brainstorming** | JVM | Model Context Protocol client and server stubs |
-| [reaktor-react](/Users/ovd/dev/reaktor/reaktor-react/README.md) | **Paused** | Android, iOS | React Native JSI bridge. Not actively maintained. |
+| [reaktor-react](./reaktor-react/README.md) | **Paused** | Android, iOS | React Native JSI bridge. Not actively maintained. |
 
 ---
 
@@ -179,7 +179,7 @@ Every module has a stability level indicating its maturity:
 
 ### Graph runtime
 
-Reaktor applications are assembled from directed graphs:
+anyone-Hub Engine applications are assembled from directed graphs:
 
 - **`Graph`** is a scoped runtime container owning nodes, DI scope, lifecycle state, coroutine scope, and navigation state.
 - **`Node`** is the unit of behavior. Variants include `BasicNode`, `ControllerNode`, `RouteNode`, `ContainerNode`, and service-oriented nodes.
@@ -188,8 +188,8 @@ Reaktor applications are assembled from directed graphs:
 - **`autoWire()`** matches unconnected consumer ports to provider ports by type and key within a graph, with DI fallback.
 
 This runtime lives primarily in:
-- [reaktor-core](/Users/ovd/dev/reaktor/reaktor-core/README.md)
-- [reaktor-graph](/Users/ovd/dev/reaktor/reaktor-graph/README.md)
+- [reaktor-core](./reaktor-core/README.md)
+- [reaktor-graph](./reaktor-graph/README.md)
 - `reaktor-graph-port`
 
 Important ideas in this layer:
@@ -210,15 +210,15 @@ It owns:
 - React Flow parity work
 
 See:
-- [compose-flow](/Users/ovd/dev/reaktor/compose-flow/README.md)
+- [compose-flow](./compose-flow/README.md)
 
 Important design rule:
-- `compose-flow` should stay generic, even when BestBuds is the current main consumer
-- if a change introduces Reaktor-specific graph assumptions into `compose-flow`, it is probably going in the wrong layer
+- `compose-flow` should stay generic, even when anyone-Hub Terminal is the current main consumer
+- if a change introduces anyone-Hub Engine-specific graph assumptions into `compose-flow`, it is probably going in the wrong layer
 
-### Reaktor graph scene
+### anyone-Hub Flow Node Graph Engine graph scene
 
-`reaktor-flow` is the layer that turns Reaktor graph semantics into an editor scene.
+`reaktor-flow` is the layer that turns anyone-Hub Engine graph semantics into an editor scene.
 
 It owns:
 - `reaktor-graph -> flow` adaptation
@@ -227,10 +227,10 @@ It owns:
 - graph regions
 - node cards, legend, toolbar, and minimap
 - graph-specific framing policy
-- the high-level `ReaktorGraphEditor(...)` surface used by product hosts
+- the high-level `anyone-Hub EngineGraphEditor(...)` surface used by product hosts
 
 See:
-- [reaktor-flow](/Users/ovd/dev/reaktor/reaktor-flow/README.md)
+- [reaktor-flow](./reaktor-flow/README.md)
 
 Important design rule:
 - `reaktor-flow` should own graph semantics, measurement, layout, and graph-specific rendering
@@ -238,15 +238,15 @@ Important design rule:
 
 ### Product shell
 
-BestBuds desktop owns the editor shell, not the graph runtime:
+anyone-Hub Terminal desktop owns the editor shell, not the graph runtime:
 - title bar
 - pane layout
 - inspector, preview, and tree
 - app switching and shell chrome
 
 See:
-- [BestBuds](/Users/ovd/dev/bestbuds/README.md)
-- [BestBuds engine / graph editor guide](/Users/ovd/dev/bestbuds/modules/engine/README.md)
+- [anyone-Hub Terminal](../anyonehub-Terminal/README.md)
+- [anyone-Hub Terminal engine / graph editor guide](../anyonehub-Terminal/modules/engine/README.md)
 
 ### Capabilities
 
@@ -304,7 +304,7 @@ Navigation is graph-native:
 
 ### Native interop
 
-Reaktor ships a unified native toolchain path:
+anyone-Hub Engine ships a unified native toolchain path:
 
 - Android via JNI and FBJNI
 - iOS via cinterop and CMake tasks
@@ -325,13 +325,13 @@ Reaktor ships a unified native toolchain path:
 
 ## Build model
 
-Reaktor is a composite Gradle build and provides its own internal plugins from `dependeasy`.
+anyone-Hub Engine is a composite Gradle build and provides its own internal plugins from `dependeasy`.
 
 Important build characteristics:
 - Kotlin Multiplatform is the default for all modules
 - native dependencies such as Hermes and FlatBuffers are bootstrapped into `.github_modules`
 - generated JS exports live under `*/ts/export`
-- consumer repos such as BestBuds use `includeBuild("../reaktor")`
+- consumer repos such as anyone-Hub Terminal use `includeBuild("../reaktor")`
 - KSP is used for compile-time code generation
 
 That means changes in `reaktor` are immediately visible to product repos using the composite build. Treat framework changes as high-leverage changes.
@@ -346,7 +346,7 @@ That means changes in `reaktor` are immediately visible to product repos using t
 - CocoaPods for iOS dependencies
 
 Detailed setup:
-- [SETUP.md](/Users/ovd/dev/reaktor/SETUP.md)
+- [SETUP.md](./SETUP.md)
 
 ### Build the framework
 
@@ -375,10 +375,10 @@ When working on the graph/editor stack:
 ./gradlew :compose-flow:compileKotlinJvm :reaktor-flow:compileKotlinJvm --no-daemon --console=plain
 ```
 
-When working on framework-wide changes that affect BestBuds desktop:
+When working on framework-wide changes that affect anyone-Hub Terminal desktop:
 
 ```bash
-cd /Users/ovd/dev/bestbuds
+cd ../anyonehub-Terminal
 ./gradlew :engine:compileKotlin :reaktorDesktop:compileKotlin --no-daemon --console=plain
 ```
 
@@ -386,22 +386,22 @@ cd /Users/ovd/dev/bestbuds
 
 | Document | Purpose |
 | --- | --- |
-| [SETUP.md](/Users/ovd/dev/reaktor/SETUP.md) | local machine setup and build prerequisites |
-| [LLM_CONTEXT.md](/Users/ovd/dev/reaktor/LLM_CONTEXT.md) | architecture context for AI assistants |
-| [reaktor-core](/Users/ovd/dev/reaktor/reaktor-core/README.md) | core runtime layer |
-| [reaktor-graph](/Users/ovd/dev/reaktor/reaktor-graph/README.md) | graph runtime |
-| [compose-flow](/Users/ovd/dev/reaktor/compose-flow/README.md) | generic flow substrate |
-| [reaktor-flow](/Users/ovd/dev/reaktor/reaktor-flow/README.md) | Reaktor graph scene/editor layer |
-| [reaktor-auth](/Users/ovd/dev/reaktor/reaktor-auth/README.md) | authentication and RBAC |
-| [reaktor-auth/TECHNICAL_README.md](/Users/ovd/dev/reaktor/reaktor-auth/TECHNICAL_README.md) | auth implementation details |
-| [reaktor-auth/WEB_IMPLEMENTATION_SUMMARY.md](/Users/ovd/dev/reaktor/reaktor-auth/WEB_IMPLEMENTATION_SUMMARY.md) | web auth specifics |
-| [reaktor-db](/Users/ovd/dev/reaktor/reaktor-db/README.md) | database and persistence |
-| [reaktor-cloudflare](/Users/ovd/dev/reaktor/reaktor-cloudflare/README.md) | Cloudflare Workers integration |
-| [reaktor-google](/Users/ovd/dev/reaktor/reaktor-google/README.md) | Google Cloud Pub/Sub |
-| [reaktor-ffi](/Users/ovd/dev/reaktor/reaktor-ffi/README.md) | native bridge layer |
-| [reaktor-flexbuffer](/Users/ovd/dev/reaktor/reaktor-flexbuffer/README.md) | FlexBuffers serialization |
-| [reaktor-work](/Users/ovd/dev/reaktor/reaktor-work/README.md) | background task orchestration |
-| [tools/maestro](/Users/ovd/dev/reaktor/tools/maestro/README.md) | mobile E2E testing |
+| [SETUP.md](./SETUP.md) | local machine setup and build prerequisites |
+| [LLM_CONTEXT.md](./LLM_CONTEXT.md) | architecture context for AI assistants |
+| [reaktor-core](./reaktor-core/README.md) | core runtime layer |
+| [reaktor-graph](./reaktor-graph/README.md) | graph runtime |
+| [compose-flow](./compose-flow/README.md) | generic flow substrate |
+| [reaktor-flow](./reaktor-flow/README.md) | anyone-Hub Engine graph scene/editor layer |
+| [reaktor-auth](./reaktor-auth/README.md) | authentication and RBAC |
+| [reaktor-auth/TECHNICAL_README.md](./reaktor-auth/TECHNICAL_README.md) | auth implementation details |
+| [reaktor-auth/WEB_IMPLEMENTATION_SUMMARY.md](./reaktor-auth/WEB_IMPLEMENTATION_SUMMARY.md) | web auth specifics |
+| [reaktor-db](./reaktor-db/README.md) | database and persistence |
+| [reaktor-cloudflare](./reaktor-cloudflare/README.md) | Cloudflare Workers integration |
+| [reaktor-google](./reaktor-google/README.md) | Google Cloud Pub/Sub |
+| [reaktor-ffi](./reaktor-ffi/README.md) | native bridge layer |
+| [reaktor-flexbuffer](./reaktor-flexbuffer/README.md) | FlexBuffers serialization |
+| [reaktor-work](./reaktor-work/README.md) | background task orchestration |
+| [tools/maestro](./tools/maestro/README.md) | mobile E2E testing |
 
 ## Technology stack
 
@@ -422,7 +422,7 @@ cd /Users/ovd/dev/bestbuds
 
 ## Status
 
-Reaktor is not a polished general-purpose public framework yet. It is an active product-backed runtime.
+anyone-Hub Engine is not a polished general-purpose public framework yet. It is an active product-backed runtime.
 
 Most mature:
 - graph runtime and typed ports
@@ -446,7 +446,8 @@ Use these rules to keep the system coherent:
 
 - add reusable graph/runtime abstractions in `reaktor`
 - keep `compose-flow` generic
-- keep Reaktor graph semantics in `reaktor-flow`
-- keep product shell code in BestBuds or another consumer repo
+- keep anyone-Hub Engine graph semantics in `reaktor-flow`
+- keep product shell code in anyone-Hub Terminal or another consumer repo
 - prefer one obvious tuning surface over multiple overlapping token systems
 - when fixing graph readability, check measurement and layout before tweaking render modifiers
+
