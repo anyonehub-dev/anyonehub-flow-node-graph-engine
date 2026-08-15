@@ -138,11 +138,12 @@ internal class NativeBootstrap(
 
     private fun resolveFromPath(name: String): String? {
         val path = System.getenv("PATH") ?: return null
+        val candidates = if (isWindows()) listOf(name, "$name.exe") else listOf(name)
         return path
             .split(File.pathSeparatorChar)
             .asSequence()
             .map(::File)
-            .map { it.resolve(name) }
+            .flatMap { dir -> candidates.map { dir.resolve(it) } }
             .firstOrNull(File::canExecute)
             ?.absolutePath
     }

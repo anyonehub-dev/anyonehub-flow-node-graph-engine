@@ -74,11 +74,13 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
 
 
 val jsProjectDir = file("js")
+val isWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
+val npmCommand = if (isWindows) "npm.cmd" else "npm"
 
 val npmInstall by tasks.registering(Exec::class) {
     group = "npm"
     workingDir = jsProjectDir
-    commandLine("npm", "install")
+    commandLine(npmCommand, "install")
 
     inputs.file(jsProjectDir.resolve("package.json"))
     outputs.dir(jsProjectDir.resolve("node_modules"))
@@ -88,7 +90,7 @@ val npmInstall by tasks.registering(Exec::class) {
 val compileTypeScript by tasks.registering(Exec::class) {
     group = "npm"
     workingDir = jsProjectDir
-    commandLine("npm", "run", "build")
+    commandLine(npmCommand, "run", "build")
     inputs.dir(jsProjectDir.resolve("src"))
     dependsOn(npmInstall)
 }

@@ -8,6 +8,10 @@ import org.gradle.api.initialization.Settings
 
 class SettingsPlugin: Plugin<Settings> {
     override fun apply(target: Settings) {
-        NativeBootstrap(target).bootstrap()
+        val skip = target.providers.gradleProperty("skipNativeBootstrap").orNull == "true"
+            || System.getProperty("skipNativeBootstrap") == "true"
+        if (!skip) {
+            NativeBootstrap(target).bootstrap()
+        }
     }
 }

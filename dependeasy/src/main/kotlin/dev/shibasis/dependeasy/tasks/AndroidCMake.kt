@@ -13,7 +13,9 @@ fun Project.droidCmake(
     stl: String = "c++_shared"
 ): TaskProvider<out Task>? {
     val ndkDir = "$sdkDir/ndk/${dev.shibasis.dependeasy.Version.SDK.ndkVersion}"
-    val cmakePath = "$sdkDir/cmake/${dev.shibasis.dependeasy.Version.SDK.CMake}/bin/cmake"
-    val ninjaPath = "$sdkDir/cmake/${dev.shibasis.dependeasy.Version.SDK.CMake}/bin/ninja"
+    val isWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
+    val ext = if (isWindows) ".exe" else ""
+    val cmakePath = "cmake$ext"
+    val ninjaPath = "ninja$ext"
     return kotlinCmake(CmakePlatform.Android(abi, ndkDir, cmakePath, ninjaPath, minSdk, stl))
 }

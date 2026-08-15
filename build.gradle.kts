@@ -49,41 +49,47 @@ subprojects {
     apply(plugin = "org.jetbrains.dokka")
     apply(plugin = "com.vanniktech.maven.publish")
 
-    configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
-        coordinates("com.anyonehub", project.name, "1.0.0")
+    tasks.matching { it.name.startsWith("dokka") }.configureEach {
+        dependsOn(tasks.matching { it.name.startsWith("ksp") })
+    }
 
-        pom {
-            name.set("Anyone-Hub Reaktor Engine")
-            description.set("The core engine powering the anyone-Hub flow node graph components.")
-            inceptionYear.set("2024")
-            url.set("https://github.com/anyonehub-dev/anyonehub-flow-node-graph-engine")
-            licenses {
-                license {
-                    name.set("The Apache License, Version 2.0")
-                    url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-                    distribution.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-                }
-            }
-            developers {
-                developer {
-                    id.set("anyone-Hub")
-                    name.set("Thomas Alan Slinkard Jr")
-                    url.set("https://github.com/anyonehub-dev")
-                }
-            }
-            scm {
+    afterEvaluate {
+        configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
+            coordinates("com.anyonehub", project.name, "1.0.0")
+
+            pom {
+                name.set("Anyone-Hub Reaktor Engine")
+                description.set("The core engine powering the anyone-Hub flow node graph components.")
+                inceptionYear.set("2024")
                 url.set("https://github.com/anyonehub-dev/anyonehub-flow-node-graph-engine")
-                connection.set("scm:git:git://github.com/anyonehub-dev/anyonehub-flow-node-graph-engine.git")
-                developerConnection.set("scm:git:ssh://git@github.com/anyonehub-dev/anyonehub-flow-node-graph-engine.git")
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                        distribution.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("anyone-Hub")
+                        name.set("Thomas Alan Slinkard Jr")
+                        url.set("https://github.com/anyonehub-dev")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/anyonehub-dev/anyonehub-flow-node-graph-engine")
+                    connection.set("scm:git:git://github.com/anyonehub-dev/anyonehub-flow-node-graph-engine.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/anyonehub-dev/anyonehub-flow-node-graph-engine.git")
+                }
+            }
+
+            publishToMavenCentral()
+            if (project.hasProperty("signing.keyId")) {
+                signAllPublications()
             }
         }
 
-        publishToMavenCentral()
-        signAllPublications()
-    }
-
-    // Disable lint for library modules — lint runs on the app target, not here
-    afterEvaluate {
+        // Disable lint for library modules — lint runs on the app target, not here
         tasks.matching { it.name.contains("lint", ignoreCase = true) }.configureEach {
             enabled = false
         }

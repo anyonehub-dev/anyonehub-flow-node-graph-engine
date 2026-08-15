@@ -32,11 +32,20 @@ val genGrafanaSdk by tasks.registering(Exec::class) {
     val outDir = grafanaGen.get().asFile
     outputs.dir(outDir)
     onlyIf { !File(outDir, "java/src/main/java/com/pulumi/grafana/Provider.java").exists() }
-    commandLine(
-        "sh", "-c",
-        "pulumi plugin install resource grafana $grafanaVersion --server github://api.github.com/pulumiverse >/dev/null 2>&1 || true; " +
-            "pulumi package gen-sdk grafana --language java -o '${outDir.absolutePath}'",
-    )
+    val isWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
+    if (isWindows) {
+        commandLine(
+            "cmd", "/c",
+            "pulumi plugin install resource grafana $grafanaVersion --server github://api.github.com/pulumiverse >nul 2>&1 & " +
+                "pulumi package gen-sdk grafana --language java -o \"${outDir.absolutePath}\""
+        )
+    } else {
+        commandLine(
+            "sh", "-c",
+            "pulumi plugin install resource grafana $grafanaVersion --server github://api.github.com/pulumiverse >/dev/null 2>&1 || true; " +
+                "pulumi package gen-sdk grafana --language java -o '${outDir.absolutePath}'",
+        )
+    }
     doLast {
         val resDir = File(outDir, "resources/com/pulumi/grafana").apply { mkdirs() }
         File(resDir, "version.txt").writeText(grafanaVersion)
